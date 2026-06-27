@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { SignIn } from "@clerk/nextjs";
 import Link from "next/link";
 
@@ -81,6 +82,8 @@ function ClerkLoadingSkeleton() {
 
 export default function LoginPage() {
   const [isLoaded, setIsLoaded] = useState(false);
+  const searchParams = useSearchParams();
+  const redirectUrl = searchParams.get("redirect_url") || "/";
 
   useEffect(() => {
     // Simulate Clerk loading time
@@ -118,7 +121,8 @@ export default function LoginPage() {
             }}
             routing="path"
             path="/login"
-            fallbackRedirectUrl="/"
+            afterSignInUrl={redirectUrl}
+            fallbackRedirectUrl={redirectUrl}
             signUpUrl="/register"
           />
         )}

@@ -5,11 +5,6 @@ import { LocationBanner } from "./location-banner";
 interface CustomerLayoutProps {
   children: React.ReactNode;
   cartItemCount?: number;
-  user?: {
-    firstName?: string | null;
-    lastName?: string | null;
-    avatarUrl?: string | null;
-  } | null;
   selectedLocation?: {
     name: string;
     address: string;
@@ -20,7 +15,6 @@ interface CustomerLayoutProps {
 export function CustomerLayout({
   children,
   cartItemCount = 0,
-  user,
   selectedLocation,
   showLocationBanner = true,
 }: CustomerLayoutProps) {
@@ -28,7 +22,6 @@ export function CustomerLayout({
     <div className="flex min-h-screen flex-col">
       <Header
         cartItemCount={cartItemCount}
-        user={user}
         selectedLocation={selectedLocation}
       />
       {showLocationBanner && !selectedLocation && <LocationBanner />}

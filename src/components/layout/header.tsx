@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Search, ShoppingBag, User, Menu, MapPin, ChevronDown } from "lucide-react";
+import { useUser } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -59,11 +60,6 @@ const menuCategories = [
 
 interface HeaderProps {
   cartItemCount?: number;
-  user?: {
-    firstName?: string | null;
-    lastName?: string | null;
-    avatarUrl?: string | null;
-  } | null;
   selectedLocation?: {
     name: string;
     address: string;
@@ -72,11 +68,13 @@ interface HeaderProps {
 
 export function Header({
   cartItemCount = 0,
-  user,
   selectedLocation,
 }: HeaderProps) {
+  const { user } = useUser();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+
+  const userInitial = user?.firstName?.charAt(0) || user?.emailAddresses?.[0]?.emailAddress?.charAt(0) || null;
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -87,7 +85,7 @@ export function Header({
           <Sheet>
             <SheetTrigger render={<MobileMenuButton />} />
             <SheetContent side="left" className="w-[300px] sm:w-[400px]">
-              <MobileNav user={user} />
+              <MobileNav />
             </SheetContent>
           </Sheet>
 
@@ -224,12 +222,16 @@ export function Header({
             href={user ? "/account/profile" : "/login"}
             className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
-            {user?.avatarUrl ? (
+            {user?.imageUrl ? (
               <img
-                src={user.avatarUrl}
+                src={user.imageUrl}
                 alt={user.firstName || "User"}
                 className="h-8 w-8 rounded-full object-cover"
               />
+            ) : userInitial ? (
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium">
+                {userInitial}
+              </div>
             ) : (
               <User className="h-5 w-5" />
             )}

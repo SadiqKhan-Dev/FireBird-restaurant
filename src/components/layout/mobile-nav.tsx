@@ -15,23 +15,15 @@ import {
   Heart,
   Gift,
   Ticket,
-  Bell,
   Info,
   BookOpen,
   Truck,
   Star,
   HelpCircle,
 } from "lucide-react";
+import { useUser, useClerk } from "@clerk/nextjs";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-
-interface MobileNavProps {
-  user?: {
-    firstName?: string | null;
-    lastName?: string | null;
-    avatarUrl?: string | null;
-  } | null;
-}
 
 const mainLinks = [
   { label: "Home", href: "/", icon: Home },
@@ -60,8 +52,15 @@ const supportLinks = [
   { label: "Write a Review", href: "/reviews/write", icon: Star },
 ];
 
-export function MobileNav({ user }: MobileNavProps) {
+export function MobileNav() {
   const pathname = usePathname();
+  const { user } = useUser();
+  const { signOut } = useClerk();
+
+  const userInitial =
+    user?.firstName?.charAt(0) ||
+    user?.emailAddresses?.[0]?.emailAddress?.charAt(0) ||
+    null;
 
   return (
     <div className="flex h-full flex-col">
@@ -162,12 +161,16 @@ export function MobileNav({ user }: MobileNavProps) {
       <div className="py-4">
         {user ? (
           <div className="flex items-center gap-3">
-            {user.avatarUrl ? (
+            {user.imageUrl ? (
               <img
-                src={user.avatarUrl}
+                src={user.imageUrl}
                 alt={user.firstName || "User"}
                 className="h-10 w-10 rounded-full object-cover"
               />
+            ) : userInitial ? (
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium">
+                {userInitial}
+              </div>
             ) : (
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
                 <User className="h-5 w-5" />
@@ -177,8 +180,14 @@ export function MobileNav({ user }: MobileNavProps) {
               <p className="text-sm font-medium">
                 {user.firstName} {user.lastName}
               </p>
+              <p className="text-xs text-muted-foreground">
+                {user.emailAddresses?.[0]?.emailAddress}
+              </p>
             </div>
-            <button className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+            <button
+              onClick={() => signOut()}
+              className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
               <LogOut className="h-5 w-5" />
               <span className="sr-only">Sign out</span>
             </button>
