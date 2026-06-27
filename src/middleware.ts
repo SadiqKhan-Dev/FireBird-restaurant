@@ -32,15 +32,7 @@ const authRoutes = createRouteMatcher([
   "/reset-password(.*)",
 ]);
 
-// Define admin routes that require admin role
-const adminRoutes = createRouteMatcher([
-  "/admin(.*)",
-  "/api/admin(.*)",
-]);
-
 export default clerkMiddleware(async (auth, req) => {
-  const { userId } = await auth();
-
   // Allow public routes
   if (publicRoutes(req)) {
     return;
@@ -52,8 +44,9 @@ export default clerkMiddleware(async (auth, req) => {
   }
 
   // Protect all other routes
+  const { userId } = await auth();
+
   if (!userId) {
-    // Redirect to login if not authenticated
     const signInUrl = new URL("/login", req.url);
     signInUrl.searchParams.set("redirect_url", req.url);
     return Response.redirect(signInUrl);
@@ -64,9 +57,9 @@ export default clerkMiddleware(async (auth, req) => {
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and all static files
+    // Skip Next.js internals and all static files, but run for API and dynamic routes
     "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    // Always run for API routes
-    "/(api|trpc)(.*)",
+    // Always run for Clerk-specific frontend API routes
+    "/__clerk/(.*)",
   ],
 };
