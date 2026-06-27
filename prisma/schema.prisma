@@ -1,0 +1,640 @@
+// FireBird Chicken - Prisma Schema
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum UserRole {
+  SUPER_ADMIN
+  RESTAURANT_MANAGER
+  KITCHEN_STAFF
+  CUSTOMER_SUPPORT
+  DELIVERY_DRIVER
+}
+
+enum OrderStatus {
+  PLACED
+  CONFIRMED
+  PREPARING
+  READY
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+  REJECTED
+}
+
+enum OrderType {
+  DELIVERY
+  PICKUP
+  DINE_IN
+  SCHEDULED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum PaymentMethod {
+  STRIPE
+  PAYPAL
+  APPLE_PAY
+  GOOGLE_PAY
+  CASH_ON_DELIVERY
+  GIFT_CARD
+}
+
+enum LoyaltyTier {
+  FLAME
+  BLAZE
+  INFERNO
+  PHOENIX
+}
+
+// ============================================================
+// USERS & AUTH
+// ============================================================
+
+model User {
+  id            String    @id @default(uuid()) @db.Uuid
+  clerkId       String    @unique
+  email         String    @unique
+  firstName     String?
+  lastName      String?
+  phone         String?
+  avatarUrl     String?
+  role          UserRole  @default(CUSTOMER_SUPPORT)
+  isBlocked     Boolean   @default(false)
+  loyaltyTier   LoyaltyTier @default(FLAME)
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  addresses          Address[]
+  orders             Order[]
+  cart               Cart?
+  reviews            Review[]
+  favorites          Favorite[]
+  loyaltyPoints      LoyaltyTransaction[]
+  notifications      Notification[]
+  savedPaymentMethods SavedPaymentMethod[]
+
+  @@index([clerkId])
+  @@index([email])
+}
+
+model Address {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @db.Uuid
+  label         String?
+  street        String
+  apartment     String?
+  city          String
+  state         String
+  zipCode       String
+  country       String   @default("US")
+  latitude      Float?
+  longitude     Float?
+  isDefault     Boolean  @default(false)
+  deliveryInstructions String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@index([userId])
+}
+
+model SavedPaymentMethod {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @db.Uuid
+  stripePaymentMethodId String
+  brand         String?
+  last4         String
+  expMonth      Int
+  expYear       Int
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ============================================================
+// RESTAURANT LOCATIONS
+// ============================================================
+
+model RestaurantLocation {
+  id              String   @id @default(uuid()) @db.Uuid
+  name            String
+  slug            String   @unique
+  address         String
+  city            String
+  state           String
+  zipCode         String
+  country         String   @default("US")
+  latitude        Float
+  longitude       Float
+  phone           String
+  email           String?
+  isActive        Boolean  @default(true)
+  timezone        String   @default("America/New_York")
+  taxRate         Float    @default(0.0)
+  deliveryFee     Int      @default(0)
+  minimumOrder    Int      @default(0)
+  deliveryRadius  Float    @default(5.0)
+  preparationTime Int      @default(15)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  operatingHours OperatingHour[]
+  deliveryZones  DeliveryZone[]
+  inventory      Inventory[]
+  orders         Order[]
+
+  @@index([slug])
+  @@index([isActive])
+}
+
+model OperatingHour {
+  id           String  @id @default(uuid()) @db.Uuid
+  locationId   String  @db.Uuid
+  dayOfWeek    Int     // 0=Sunday, 6=Saturday
+  openTime     String  // "09:00"
+  closeTime    String  // "22:00"
+  isClosed     Boolean @default(false)
+
+  location RestaurantLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([locationId, dayOfWeek])
+}
+
+model DeliveryZone {
+  id           String  @id @default(uuid()) @db.Uuid
+  locationId   String  @db.Uuid
+  zipCode      String
+  deliveryFee  Int     @default(0)
+  estimatedTime Int    @default(30)
+
+  location RestaurantLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([locationId, zipCode])
+}
+
+// ============================================================
+// MENU SYSTEM
+// ============================================================
+
+model Category {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String   @unique
+  description String?
+  imageUrl    String?
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  menuItems MenuItem[]
+
+  @@index([slug])
+  @@index([sortOrder])
+}
+
+model MenuItem {
+  id              String   @id @default(uuid()) @db.Uuid
+  name            String
+  slug            String   @unique
+  description     String
+  shortDescription String?
+  basePrice       Int      // cents
+  categoryId      String   @db.Uuid
+  imageUrl        String
+  thumbnailUrl    String?
+  calories        Int?
+  allergens       String[]
+  isAvailable     Boolean  @default(true)
+  isFeatured      Boolean  @default(false)
+  isSeasonal      Boolean  @default(false)
+  availableFrom   DateTime?
+  availableUntil  DateTime?
+  preparationTime Int      @default(15)
+  spiceLevel      Int      @default(0)
+  tags            String[]
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  category       Category          @relation(fields: [categoryId], references: [id])
+  customizations ItemCustomization[]
+  cartItems      CartItem[]
+  orderItems     OrderItem[]
+  favorites      Favorite[]
+  reviews        Review[]
+  inventory      Inventory[]
+
+  @@index([slug])
+  @@index([categoryId])
+  @@index([isAvailable])
+  @@index([isFeatured])
+}
+
+model ItemCustomization {
+  id          String  @id @default(uuid()) @db.Uuid
+  menuItemId  String  @db.Uuid
+  name        String
+  type        String  // "single", "multiple", "text"
+  isRequired  Boolean @default(false)
+  maxSelections Int?
+  sortOrder   Int     @default(0)
+
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  options  CustomizationOption[]
+
+  @@index([menuItemId])
+}
+
+model CustomizationOption {
+  id                  String  @id @default(uuid()) @db.Uuid
+  itemCustomizationId String  @db.Uuid
+  name                String
+  priceModifier       Int     @default(0)
+  isDefault           Boolean @default(false)
+  isAvailable         Boolean @default(true)
+  sortOrder           Int     @default(0)
+
+  itemCustomization ItemCustomization @relation(fields: [itemCustomizationId], references: [id], onDelete: Cascade)
+  cartItemCustomizations CartItemCustomization[]
+  orderItemCustomizations OrderItemCustomization[]
+
+  @@index([itemCustomizationId])
+}
+
+// ============================================================
+// SHOPPING CART
+// ============================================================
+
+model Cart {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @unique @db.Uuid
+  sessionId String?  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CartItem[]
+
+  @@index([userId])
+  @@index([sessionId])
+}
+
+model CartItem {
+  id        String   @id @default(uuid()) @db.Uuid
+  cartId    String   @db.Uuid
+  menuItemId String  @db.Uuid
+  quantity  Int      @default(1)
+  unitPrice Int
+  specialInstructions String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cart     Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id])
+  selectedCustomizations CartItemCustomization[]
+
+  @@index([cartId])
+}
+
+model CartItemCustomization {
+  id                    String @id @default(uuid()) @db.Uuid
+  cartItemId            String @db.Uuid
+  customizationOptionId String @db.Uuid
+  priceModifier         Int    @default(0)
+
+  cartItem            CartItem            @relation(fields: [cartItemId], references: [id], onDelete: Cascade)
+  customizationOption CustomizationOption @relation(fields: [customizationOptionId], references: [id])
+
+  @@unique([cartItemId, customizationOptionId])
+}
+
+// ============================================================
+// ORDERS
+// ============================================================
+
+model Order {
+  id                String      @id @default(uuid()) @db.Uuid
+  orderNumber       String      @unique
+  userId            String      @db.Uuid
+  locationId        String      @db.Uuid
+  status            OrderStatus @default(PLACED)
+  orderType         OrderType
+  subtotal          Int
+  deliveryFee       Int         @default(0)
+  tax               Int         @default(0)
+  discount          Int         @default(0)
+  tipAmount         Int         @default(0)
+  total             Int
+  currency          String      @default("USD")
+  deliveryAddressId String?     @db.Uuid
+  deliveryAddress   String?
+  deliveryCity      String?
+  deliveryState     String?
+  deliveryZip       String?
+  deliveryLat       Float?
+  deliveryLng       Float?
+  deliveryInstructions String?
+  pickupTime        DateTime?
+  pickupInstructions String?
+  scheduledDate     DateTime?   @db.Date
+  scheduledTime     String?
+  partySize         Int?
+  seatingPreference String?
+  paymentMethod     PaymentMethod
+  paymentStatus     PaymentStatus @default(PENDING)
+  stripePaymentIntentId String?
+  paidAt            DateTime?
+  confirmedAt       DateTime?
+  preparingAt       DateTime?
+  readyAt           DateTime?
+  outForDeliveryAt  DateTime?
+  deliveredAt       DateTime?
+  cancelledAt       DateTime?
+  cancellationReason String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  user         User              @relation(fields: [userId], references: [id])
+  location     RestaurantLocation @relation(fields: [locationId], references: [id])
+  deliveryAddressRel Address?     @relation(fields: [deliveryAddressId], references: [id])
+  items        OrderItem[]
+  statusHistory OrderStatusHistory[]
+  reviews      Review[]
+  payment      Payment?
+
+  @@index([userId])
+  @@index([locationId])
+  @@index([status])
+  @@index([orderType])
+  @@index([createdAt])
+  @@index([orderNumber])
+}
+
+model OrderItem {
+  id          String @id @default(uuid()) @db.Uuid
+  orderId     String @db.Uuid
+  menuItemId  String @db.Uuid
+  name        String
+  quantity    Int
+  unitPrice   Int
+  totalPrice  Int
+  specialInstructions String?
+
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem  MenuItem @relation(fields: [menuItemId], references: [id])
+  selectedCustomizations OrderItemCustomization[]
+
+  @@index([orderId])
+}
+
+model OrderItemCustomization {
+  id                    String @id @default(uuid()) @db.Uuid
+  orderItemId           String @db.Uuid
+  customizationOptionId String @db.Uuid
+  name                  String
+  priceModifier         Int    @default(0)
+
+  orderItem           OrderItem           @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  customizationOption CustomizationOption @relation(fields: [customizationOptionId], references: [id])
+
+  @@unique([orderItemId, customizationOptionId])
+}
+
+model OrderStatusHistory {
+  id        String      @id @default(uuid()) @db.Uuid
+  orderId   String      @db.Uuid
+  status    OrderStatus
+  note      String?
+  createdAt DateTime    @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+// ============================================================
+// PAYMENTS
+// ============================================================
+
+model Payment {
+  id                    String   @id @default(uuid()) @db.Uuid
+  orderId               String   @unique @db.Uuid
+  stripePaymentIntentId String?  @unique
+  stripeChargeId        String?
+  paypalOrderId         String?
+  amount                Int
+  currency              String   @default("USD")
+  status                PaymentStatus @default(PENDING)
+  method                PaymentMethod
+  metadata              Json?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@index([stripePaymentIntentId])
+}
+
+// ============================================================
+// LOYALTY & REWARDS
+// ============================================================
+
+model LoyaltyTransaction {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  points    Int
+  type      String   // "earn", "redeem", "expire", "bonus"
+  source    String   // "order", "referral", "birthday", "promotion"
+  orderId   String?  @db.Uuid
+  description String
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+
+  user  User   @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+model Coupon {
+  id              String   @id @default(uuid()) @db.Uuid
+  code            String   @unique
+  description     String
+  discountType    String   // "percentage", "fixed", "free_item", "bogo", "free_delivery"
+  discountValue   Int
+  minimumOrder    Int      @default(0)
+  maximumDiscount Int?
+  usageLimit      Int?
+  usageCount      Int      @default(0)
+  perUserLimit    Int      @default(1)
+  isActive        Boolean  @default(true)
+  startsAt        DateTime?
+  expiresAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([code])
+  @@index([isActive])
+}
+
+// ============================================================
+// REVIEWS
+// ============================================================
+
+model Review {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  menuItemId String  @db.Uuid
+  orderId   String?  @db.Uuid
+  rating    Int
+  title     String?
+  text      String?
+  photos    String[]
+  isVerified Boolean @default(false)
+  isApproved Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id])
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id])
+  order    Order?   @relation(fields: [orderId], references: [id])
+
+  @@unique([userId, menuItemId, orderId])
+  @@index([menuItemId])
+  @@index([rating])
+}
+
+// ============================================================
+// INVENTORY
+// ============================================================
+
+model Inventory {
+  id           String   @id @default(uuid()) @db.Uuid
+  locationId   String   @db.Uuid
+  menuItemId   String   @db.Uuid
+  quantity     Int      @default(0)
+  lowStockThreshold Int @default(10)
+  lastRestockedAt DateTime?
+  updatedAt    DateTime @updatedAt
+
+  location RestaurantLocation @relation(fields: [locationId], references: [id])
+  menuItem MenuItem          @relation(fields: [menuItemId], references: [id])
+
+  @@unique([locationId, menuItemId])
+  @@index([quantity])
+}
+
+// ============================================================
+// NOTIFICATIONS
+// ============================================================
+
+model Notification {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  type      String   // "order_update", "promotion", "loyalty", "system"
+  title     String
+  message   String
+  data      Json?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([isRead])
+}
+
+// ============================================================
+// FAVORITES
+// ============================================================
+
+model Favorite {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  menuItemId String   @db.Uuid
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, menuItemId])
+}
+
+// ============================================================
+// MARKETING & CMS
+// ============================================================
+
+model Banner {
+  id          String   @id @default(uuid()) @db.Uuid
+  title       String
+  subtitle    String?
+  imageUrl    String
+  linkUrl     String?
+  position    String   // "hero", "above_menu", "below_menu", "sidebar", "popup"
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  startsAt    DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([position, isActive])
+}
+
+model BlogPost {
+  id          String   @id @default(uuid()) @db.Uuid
+  title       String
+  slug        String   @unique
+  excerpt     String?
+  content     String
+  coverImage  String?
+  author      String?
+  isPublished Boolean  @default(false)
+  publishedAt DateTime?
+  tags        String[]
+  seoTitle    String?
+  seoDescription String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([slug])
+  @@index([isPublished])
+}
+
+// ============================================================
+// SITE SETTINGS
+// ============================================================
+
+model SiteSetting {
+  id    String @id @default(uuid()) @db.Uuid
+  key   String @unique
+  value Json
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+}
